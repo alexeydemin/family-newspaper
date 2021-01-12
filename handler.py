@@ -74,7 +74,8 @@ def generate_pdf(event, context):
     filepath = '/tmp/{key}'.format(key=key)
 
     # Create PDF
-    config = pdfkit.configuration(wkhtmltopdf="binary/wkhtmltopdf")
+    # Download https://wkhtmltopdf.org/downloads.html and put it to binary directory
+    config = pdfkit.configuration(wkhtmltopdf="binary/wkhtmltopdf")    
     pdfkit.from_string(html, filepath, configuration=config, options={})
 
     # Upload to S3 Bucket
