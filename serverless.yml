@@ -1,0 +1,88 @@
+service: pdf-services
+
+provider:
+  name: aws
+  runtime: python3.6
+  environment:
+    S3_BUCKET_NAME: ${file(./config.yml):BucketName}
+  iamRoleStatements:
+    - Effect: "Allow"
+      Action:
+        - "s3:*"
+      Resource:
+        - arn:aws:s3:::${file(./config.yml):BucketName}
+        - arn:aws:s3:::${file(./config.yml):BucketName}/*
+
+functions:
+  get_posts:
+    handler: handler.get_posts
+    package: { }
+    events:
+      - http:
+          path: new-posts
+          method: post
+          cors: true
+  generate_html:
+    package: { }
+    handler: handler.generate_html
+    events:
+      - http:
+          path: new-html
+          method: post
+          cors: true
+  generate_pdf:
+    handler: handler.generate_pdf
+    package: { }
+    events:
+      - http:
+          path: new-pdf
+          method: post
+          cors: true
+
+stepFunctions:
+  stateMachines:
+    tgstepfunc1:
+      events:
+        - http:
+            path: runtgstep
+            method: GET
+            response:
+              headers:
+                Content-Type: "'application/json'"
+                X-Application-Id: "'my-app'"
+              template:
+                application/json: '{"status": 200, "info": "OK", "path": "https://family-newspaper-bucket.s3.amazonaws.com/default-filename.pdf"}'
+      name: "tgToPdf"
+      definition:
+        Comment: "Set of functions to transform TG posts to PDF file"
+        StartAt: GetPosts
+        States:
+          GetPosts:
+            Type: Task
+            Resource: "arn:aws:lambda:#{AWS::Region}:#{AWS::AccountId}:function:${self:service}-dev-get_posts"
+            Next: GenerateHtml
+          GenerateHtml:
+            Type: Task
+            Resource: "arn:aws:lambda:#{AWS::Region}:#{AWS::AccountId}:function:${self:service}-dev-generate_html"
+            Next: GeneratePdf
+          GeneratePdf:
+            Type: Task
+            Resource: "arn:aws:lambda:#{AWS::Region}:#{AWS::AccountId}:function:${self:service}-dev-generate_pdf"
+            End: True
+
+resources:
+  Resources:
+    NewResource:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${file(./config.yml):BucketName}
+
+custom:
+  pythonRequirements:
+    dockerizePip: false
+
+plugins:
+  - serverless-python-requirements
+  - serverless-step-functions
+  - serverless-pseudo-parameters
+  - serverless-offline
